@@ -95,6 +95,7 @@ function buyItem(index) {
     const item = items[index];
 
     if (score >= item.cost) {
+        playSound('sfx-buy');
         score = score - item.cost;
         income = income + item.income;
         item.count++;
@@ -110,7 +111,7 @@ function buyItem(index) {
 // --- 6. КЛИК ПО МОНЕТКЕ ---
 if (coin) {
     coin.addEventListener('click', function (event) {
-        
+        playSound('sfx-click');
        // просто добавляем текущую силу клика
         score = score + clickPower;
 
@@ -232,7 +233,7 @@ const events = [
         {
             text: "📉 Китай запретил майнинг... Доход упал в 2 раза",
         multiplier: 0.5, // Делим доход на 2
-        duration: 10000, // Длиться 10 секунд
+        duration: 20000, // Длиться 20 секунд
         type: "bad" // Хорошая новость
     },
     {
@@ -258,11 +259,51 @@ const events = [
         multiplier: 3, // множим доход на 3
         duration: 10000, // 10 секунд
         type: "good"      // Хорошо! 
+    },
+    {
+    text: " 🤑 ТЫ ВЫИГРАЛ МИЛЛИАРД ДОЛЛАРОВ!!!",  // Текст радостный
+    multiplier: 100,                        // Денег куча
+    type: "bad"                             // А бирка - "ПЛОХО"
     }
 ];
 
+// --- СПЕЦИАЛЬНЫЙ ЗВУК ДЛЯ SAFARI (Генератор частот) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playDigitalSiren() {
+    // 1. Просыпайся, Сафари! (Нужно для первого запуска)
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
+    // 2. Создаем генератор звука (Осциллятор)
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    // 3. Настраиваем звук (Сирена)
+    oscillator.type = 'sawtooth'; // Резкий звук (пила)
+    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // Старт (Нота Ля)
+    oscillator.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.5); // Вверх!
+    oscillator.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 1.0); // Вниз!
+
+    // 4. Громкость и время
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Громкость 10% (чтоб не оглохнуть)
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.0); // Затухание
+
+    // 5. ПУСК!
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 1.0); // Стоп через 1 сек
+}
+
 // Функция запуска события
 function triggerRandomEvent() {
+    // Звук тревоги
+    playDigitalSiren();
+    // playSound('sfx-alert');
+
     // 1. Выбираем случайное событие из списка
     const randomIndex = Math.floor(Math.random() * events.length);
     const event = events[randomIndex];
@@ -290,6 +331,27 @@ function triggerRandomEvent() {
 
 // Запускаем проверку событий каждые 30 секунд
 setInterval(triggerRandomEvent, 30000);
+
+// --- 12. Звуки ---
+// --- 12. ЗВУКИ (С диагностикой) ---
+function playSound(id) {
+    const audio = document.getElementById(id);
+
+    if (!audio) {
+        console.error(`❌ ОШИБКА: Я не нашел аудио-тег с id="${id}" в HTML! Проверь index.html.`);
+        return;
+    }
+
+    // Пробуем запустить
+    audio.currentTime = 0; 
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            console.warn(`⚠️ БРАУЗЕР ЗАПРЕТИЛ ЗВУК: Скорее всего, ты еще не кликнул по странице. Ошибка: ${error}`);
+        });
+    }
+}
 
 // Запуск при старте
 renderShop();
