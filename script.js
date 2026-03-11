@@ -4,11 +4,14 @@ let income = 0;
 let incomeMultiplier = 1;
 let clickPower = 1; // сколько даем за один клик
 let upgradeCost = 500; // Начальная цена апгрейда
+let autoClicks = 0; // сколько автокликов в секунду сначало
+let autoClickCost = 1000; // начальная цена бота (я поставил 1000 для теста)
 
 // Находим элементы интерфейса
 const scoreElement = document.getElementById('score');
 const incomeElement = document.getElementById('income');
 const upgradeBtn = document.getElementById('btn-double');
+const autoClickBtn = document.getElementById('btn-autoclick');
 const coin = document.querySelector('.coin-container'); 
 const shopContainer = document.getElementById('shop-items');
 
@@ -37,12 +40,15 @@ if (localStorage.getItem('score')) {
     score = parseInt(localStorage.getItem('score'));
     income = parseInt(localStorage.getItem('income'));
 
-    // Загружаем силу клика и цену апгрейда
     if (localStorage.getItem('clickPower')) {
         clickPower = parseInt(localStorage.getItem('clickPower'));
     }
     if (localStorage.getItem('upgradeCost')) {
         upgradeCost = parseInt(localStorage.getItem('upgradeCost'));
+    }
+    if (localStorage.getItem('autoClicks')) {
+        autoClicks = parseInt(localStorage.getItem('autoClicks'));
+        autoClickCost = parseInt(localStorage.getItem('autoClickCost'));
     }
 }
 
@@ -50,12 +56,12 @@ if (localStorage.getItem('items')) {
     items = JSON.parse(localStorage.getItem('items'));
 }
 
+// Вызываем обновление кнопок при старте
 upgradeUpgradeButton();
 
-// Проверка покупки апгрейда при загрузке
 if (localStorage.getItem('hasDoubleClick') === 'true') {
-    hasDoubleClick = true;
-    disableUpgradeBtn(); // Вызываем функцию отключения кнопки
+    let hasDoubleClick = true;
+    disableUpgradeBtn(); 
 }
 
 // --- 4. ОТРИСОВКА МАГАЗИНА (РЕНДЕР) ---
@@ -112,35 +118,45 @@ function buyItem(index) {
 if (coin) {
     coin.addEventListener('click', function (event) {
         playSound('sfx-click');
-       // просто добавляем текущую силу клика
         score = score + clickPower;
 
         scoreElement.innerText = formatNumber(score);
-        renderShop(); // Обновляем магазин (вдруг денег стало хватать?)
-
-        // Визуальный эффект
+        renderShop(); 
         createParticle(event.clientX, event.clientY);
     });
-} else {
-    console.error("ОШИБКА: Монетка не найдена! Проверь HTML.");
 }
 
-// --- 7. ПОКУПКА АПГРЕЙДА (КНОПКА) ---
+// --- 7. ПОКУПКА АПГРЕЙДА (КНОПКА УСИЛЕНИЯ КЛИКА) ---
 if (upgradeBtn) {
     upgradeBtn.addEventListener('click', function() {
-
-        // Если хватает денег на текущую цену апгрейда
         if (score >= upgradeCost) {
-            score = score - upgradeCost; // Забираем денюшку за апгрейд
-            clickPower = clickPower * 2; // Удваиваем
-
-            // Увеличиваем цену следующего апгрейда в 3 раза и тд
+            score = score - upgradeCost; 
+            clickPower = clickPower * 2; 
             upgradeCost = Math.floor(upgradeCost * 3);
 
             scoreElement.innerText = formatNumber(score);
 
             localStorage.setItem('clickPower', clickPower);
             localStorage.setItem('upgradeCost', upgradeCost);
+            
+            upgradeUpgradeButton();
+            renderShop();
+        }
+    }); // <-- ВОТ ЭТИ СКОБКИ БЫЛИ ПОТЕРЯНЫ!
+}
+
+// --- 7.1. ПОКУПКА АВТОКЛИКЕРА ---
+if (autoClickBtn) {
+    autoClickBtn.addEventListener('click', function() {
+        if (score >= autoClickCost) {
+            score = score - autoClickCost;
+            autoClicks = autoClicks + 1;
+            autoClickCost = Math.floor(autoClickCost * 2.5);
+
+            scoreElement.innerText = formatNumber(score);
+
+            localStorage.setItem('autoClicks', autoClicks);
+            localStorage.setItem('autoClickCost', autoClickCost);
 
             upgradeUpgradeButton();
             renderShop();
@@ -148,40 +164,41 @@ if (upgradeBtn) {
     });
 }
 
-//Функция обновления текста на кнопке
+// --- ПОМОЩНИКИ ДЛЯ КНОПОК ---
 function upgradeUpgradeButton() {
     if (upgradeBtn) {
-        // Усиливаем клик
         upgradeBtn.innerText = `Усилить клик (+${formatNumber(clickPower)}) | Цена: ${formatNumber(upgradeCost)}$`;
-
-        // Если не хватает денег - красим в серый
         if (score < upgradeCost) {
             upgradeBtn.style.opacity = "0.6";
         } else {
             upgradeBtn.style.opacity = "1";
         }
     }
+    
+    if (autoClickBtn) {
+        autoClickBtn.innerText = `Автоклик: ${autoClicks}/сек | Цена: ${formatNumber(autoClickCost)}$`;
+        if (score < autoClickCost) {
+            autoClickBtn.style.opacity = "0.6";
+        } else {
+            autoClickBtn.style.opacity = "1";
+        }
+    }
 }
-// Помощник для отключения кнопки (чтобы не дублировать код)
-// Помощник для отключения кнопки
+
 function disableUpgradeBtn() {
     if (upgradeBtn) {
         upgradeBtn.innerText = "УЖЕ КУПЛЕНО!";
-        // Мы УБРАЛИ строчки с .style.background и .style.color
-        // CSS сам сделает кнопку серой, когда увидит disabled = true
         upgradeBtn.disabled = true;
     }
 }
+
 // --- 8. ЭФФЕКТЫ (Particles) ---
 function createParticle(x, y) {
     const particle = document.createElement('div');
     particle.classList.add('float-text');
-    
-  particle.innerText = '+' + formatNumber(clickPower) + ' $';
-
+    particle.innerText = '+' + formatNumber(clickPower) + ' $';
     particle.style.left = x + 'px';
     particle.style.top = y + 'px';
-
     document.body.appendChild(particle);
 
     setTimeout(() => {
@@ -192,13 +209,11 @@ function createParticle(x, y) {
 // --- 9. ИГРОВОЙ ЦИКЛ ---
 setInterval(function () {
     let currentIncome = income * incomeMultiplier;
+    let autoIncome = autoClicks * clickPower * incomeMultiplier;
 
-    score = score + currentIncome;
+    score = score + currentIncome + autoIncome;
     scoreElement.innerText = formatNumber(score);
-    incomeElement.innerText = formatNumber(currentIncome);
-    
-    // score = score + income;
-    // scoreElement.innerText = formatNumber(score);
+    incomeElement.innerText = formatNumber(currentIncome + autoIncome);
 
     localStorage.setItem('score', score);
     localStorage.setItem('income', income);
@@ -206,10 +221,30 @@ setInterval(function () {
 
     renderShop(); 
     upgradeUpgradeButton();
+
+    // --- ЭФФЕКТЫ АВТОКЛИКЕРА ---
+    if (autoClicks > 0 && coin) {
+        // 1. узнаем где сейчас на экране находится монета
+        const rect = coin.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height /2;
+
+        // 2. Ограничиваем количество циферок
+        let particlesToSpawn = Math.min(autoClicks, 10);
+
+        for (let i = 0; i < particlesToSpawn; i++) {
+            setTimeout(() => {
+                // делаем случайный разблок вокруг круга монеты
+                const randomX = centerX + (Math.random() - 0.5) * 150;
+                const randomY = centerY + (Math.random() - 0.5) * 150;
+
+                createParticle(randomX, randomY);
+            }, i *(1000 / particlesToSpawn));
+        }
+    }
 }, 1000);
 
-// --- 10. ФОРМАТИРОВАНИЕ ЧИСЕЛ (1.5k) ---
-// Исправили опечатку Nubmer -> Number
+// --- 10. ФОРМАТИРОВАНИЕ ЧИСЕЛ ---
 function formatNumber(num) {
     if (num < 1000) return num;
     if (num < 1000000) return (num / 1000).toFixed(1) + 'k';
@@ -217,138 +252,69 @@ function formatNumber(num) {
     return (num / 1000000000).toFixed(1) + 'B';
 }
 
-
 // --- 11. СИСТЕМА СЛУЧАЙНЫХ СОБЫТИЙ --- 
-
 const newsBanner = document.getElementById('news-banner');
 
-// Список возможных событий
 const events = [
-    {
-        text: "🚀 Илон Маск твитнул про крипту! Доход x2!",
-        multiplier: 2, // Умножаем доход на 2
-        duration: 10000, // Длиться 10 секунд
-        type: "good" // Хорошая новость
-    },
-        {
-            text: "📉 Китай запретил майнинг... Доход упал в 2 раза",
-        multiplier: 0.5, // Делим доход на 2
-        duration: 20000, // Длиться 20 секунд
-        type: "bad" // Хорошая новость
-    },
-    {
-        text: "⚡️ Видеокарты подешевели! Временный буст x3!",
-        multiplier: 3,
-        duration: 5000,  // 5 секунд
-        type: "good"
-    },
-    {
-        text: "🥴 Илон Маск сделал плохой твит! Курс рухнул...",
-        multiplier: 0.5, // Делим доход на 2
-        duration: 15000, // Страдаем 15 секунд (подольше, раз такое дело)
-        type: "bad"      // Красная плашка
-    },
-    {
-        text: "😭 Трамп всё таки был на острове Эпштейна! Курс рухнул...",
-        multiplier: 0.25, // Делим доход на 4
-        duration: 20000, // Страдаем 20 секунд (подольше, раз такое дело)
-        type: "bad"      // Красная плашка
-    },
-    {
-        text: " 🥰 Трамп не был на острове Эпштейна! Курс вырос!",
-        multiplier: 3, // множим доход на 3
-        duration: 10000, // 10 секунд
-        type: "good"      // Хорошо! 
-    },
-    {
-    text: " 🤑 ТЫ ВЫИГРАЛ МИЛЛИАРД ДОЛЛАРОВ!!!",  // Текст радостный
-    multiplier: 100,                        // Денег куча
-    type: "bad"                             // А бирка - "ПЛОХО"
-    }
+    { text: "🚀 Илон Маск твитнул про крипту! Доход x2!", multiplier: 2, duration: 10000, type: "good" },
+    { text: "📉 Китай запретил майнинг... Доход упал в 2 раза", multiplier: 0.5, duration: 20000, type: "bad" },
+    { text: "⚡️ Видеокарты подешевели! Временный буст x3!", multiplier: 3, duration: 5000, type: "good" },
+    { text: "🥴 Илон Маск сделал плохой твит! Курс рухнул...", multiplier: 0.5, duration: 15000, type: "bad" },
+    { text: "😭 Трамп всё таки был на острове Эпштейна! Курс рухнул...", multiplier: 0.25, duration: 20000, type: "bad" },
+    { text: " 🥰 Трамп не был на острове Эпштейна! Курс вырос!", multiplier: 3, duration: 10000, type: "good" },
+    { text: " 🤑 ТЫ ВЫИГРАЛ МИЛЛИАРД ДОЛЛАРОВ!!!", multiplier: 100, type: "bad" }
 ];
 
-// --- СПЕЦИАЛЬНЫЙ ЗВУК ДЛЯ SAFARI (Генератор частот) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playDigitalSiren() {
-    // 1. Просыпайся, Сафари! (Нужно для первого запуска)
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-
-    // 2. Создаем генератор звука (Осциллятор)
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-
-    // 3. Настраиваем звук (Сирена)
-    oscillator.type = 'sawtooth'; // Резкий звук (пила)
-    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // Старт (Нота Ля)
-    oscillator.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.5); // Вверх!
-    oscillator.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 1.0); // Вниз!
-
-    // 4. Громкость и время
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Громкость 10% (чтоб не оглохнуть)
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.0); // Затухание
-
-    // 5. ПУСК!
+    oscillator.type = 'sawtooth'; 
+    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); 
+    oscillator.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.5); 
+    oscillator.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 1.0); 
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); 
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.0); 
     oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 1.0); // Стоп через 1 сек
+    oscillator.stop(audioCtx.currentTime + 1.0); 
 }
 
-// Функция запуска события
 function triggerRandomEvent() {
-    // Звук тревоги
     playDigitalSiren();
-    // playSound('sfx-alert');
-
-    // 1. Выбираем случайное событие из списка
     const randomIndex = Math.floor(Math.random() * events.length);
     const event = events[randomIndex];
-
-    // 2. Применяем эффект
     incomeMultiplier = event.multiplier;
 
-    // 3. Показываем плашку
     newsBanner.innerText = event.text;
-    newsBanner.classList.remove('news-hidden'); // показываем
-    newsBanner.classList.add(event.type === 'good' ? 'news-good' : 'news-bad'); // красим
+    newsBanner.classList.remove('news-hidden'); 
+    newsBanner.classList.add(event.type === 'good' ? 'news-good' : 'news-bad'); 
 
-    // 4. Таймер отключения события
     setTimeout(() => {
-        incomeMultiplier = 1; // Возвращаем множитель в норму
-
-        // прячем плашку
+        incomeMultiplier = 1; 
         newsBanner.classList.add('news-hidden');
         newsBanner.classList.remove('news-good', 'news-bad');
-
-        // возвращем текст дохода в норму визуально сразу
         incomeElement.innerText = formatNumber(income);
     }, event.duration);
 }
 
-// Запускаем проверку событий каждые 30 секунд
 setInterval(triggerRandomEvent, 30000);
 
-// --- 12. Звуки ---
 // --- 12. ЗВУКИ (С диагностикой) ---
 function playSound(id) {
     const audio = document.getElementById(id);
-
     if (!audio) {
-        console.error(`❌ ОШИБКА: Я не нашел аудио-тег с id="${id}" в HTML! Проверь index.html.`);
+        console.error(`❌ ОШИБКА: Я не нашел аудио-тег с id="${id}" в HTML!`);
         return;
     }
-
-    // Пробуем запустить
     audio.currentTime = 0; 
     const playPromise = audio.play();
-
     if (playPromise !== undefined) {
         playPromise.catch(error => {
-            console.warn(`⚠️ БРАУЗЕР ЗАПРЕТИЛ ЗВУК: Скорее всего, ты еще не кликнул по странице. Ошибка: ${error}`);
+            console.warn(`⚠️ БРАУЗЕР ЗАПРЕТИЛ ЗВУК: ${error}`);
         });
     }
 }
